@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Купить NFT с Getgems</title>
+
+    <!-- Встроенные стили -->
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .container {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 600px;
+            width: 100%;
+        }
+
+        h1, h2 {
+            color: #007bff;
+            margin-bottom: 20px;
+        }
+
+        p {
+            margin-bottom: 10px;
+            line-height: 1.5;
+        }
+
+        .wallet-section, .buy-section {
+            border: 1px solid #eee;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            background-color: #f9f9f9;
+            text-align: left; /* Для лучшего расположения форм */
+        }
+
+        hr {
+            border: none;
+            border-top: 1px dashed #ddd;
+            margin: 30px 0;
+        }
+
+        #ton-connect-button {
+            margin-bottom: 15px;
+            text-align: center; /* Центрируем кнопку подключения */
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+
+        .input-group input[type="text"],
+        .input-group input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1em;
+            box-sizing: border-box; /* Учитываем padding и border в ширине */
+        }
+
+        .input-group small {
+            display: block;
+            margin-top: 5px;
+            color: #777;
+            font-size: 0.85em;
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            width: 100%;
+            box-sizing: border-box;
+            margin-top: 15px;
+        }
+
+        button:hover:not(:disabled) {
+            background-color: #0056b3;
+        }
+
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        .message {
+            padding: 10px;
+            margin-top: 15px;
+            border-radius: 5px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .message.info {
+            background-color: #e7f3ff;
+            color: #0056b3;
+            border: 1px solid #b3d9ff;
+        }
+
+        .message.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        #connected-address {
+            word-break: break-all; /* Для длинных адресов */
+        }
+    </style>
+
+    <!-- Подключаем TonConnect SDK через CDN -->
+    <script src="https://unpkg.com/@tonconnect/sdk@latest/dist/tonconnect-sdk.js"></script>
+    <!-- Подключаем @ton/ton SDK через CDN для работы с адресами, BigInt и т.д. -->
+    <script src="https://unpkg.com/@ton/ton@latest/dist/ton.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Купить NFT с Getgems</h1>
+        <p>Подключите свой TON-кошелек и купите конкретный NFT, указав его Sale Contract и цену.</p>
+
+        <div class="wallet-section">
+            <div id="ton-connect-button"></div>
+            <p>Статус кошелька: <span id="wallet-status">Отключен</span></p>
+            <p>Подключенный адрес: <span id="connected-address">N/A</span></p>
+        </div>
+
+        <hr>
+
+        <div class="buy-section">
+            <h2>Данные для покупки NFT</h2>
+            <div class="input-group">
+                <label for="sale-contract-address">Адрес Sale Contract (с Getgems):</label>
+                <input type="text" id="sale-contract-address" placeholder="EQ... / kQ...">
+                <small>Найдите на странице NFT на Getgems в деталях листинга или истории.</small>
+            </div>
+            <div class="input-group">
+                <label for="nft-item-address">Адрес NFT-предмета (опционально для проверки):</label>
+                <input type="text" id="nft-item-address" placeholder="EQ... / kQ...">
+                <small>Адрес самого NFT-токена. Обычно можно найти на странице Getgems.</small>
+            </div>
+            <div class="input-group">
+                <label for="nft-price">Точная цена NFT (в TON):</label>
+                <input type="number" id="nft-price" step="0.000000001" placeholder="0.1">
+                <small>Должна точно соответствовать цене на Getgems.</small>
+            </div>
+
+            <button id="buy-button" disabled>Купить NFT</button>
+            <p id="buy-status" class="message"></p>
+        </div>
+    </div>
+
+    <script>
+        // Получаем TonConnectUI и @ton/ton SDK из глобального объекта (так как используем CDN)
+        const TonConnectUI = window.TonConnectUI.TonConnectUI;
+        const ton = window.ton; // Теперь доступен 'ton.Address' и другие
+
+        // --- КОНФИГУРАЦИЯ ---
+        // !!! ВАЖНО: ЗАМЕНИТЕ НА АКТУАЛЬНЫЙ URL ВАШЕГО tonconnect-manifest.json !!!
+        // Этот URL должен быть публично доступен, когда вы развернете свой сайт.
+        // Например: "https://ваш-домен.com/tonconnect-manifest.json"
+        const MANIFEST_URL = "https://raw.githubusercontent.com/MatveyVue/manifest/refs/heads/main/tonconnect-manifest.json"; // ИЗМЕНИТЕ НА ВАШ РЕАЛЬНЫЙ URL
+
+
+        // --- Элементы DOM ---
+        const walletStatusEl = document.getElementById('wallet-status');
+        const connectedAddressEl = document.getElementById('connected-address');
+        const saleContractAddressInput = document.getElementById('sale-contract-address');
+        const nftItemAddressInput = document.getElementById('nft-item-address');
+        const nftPriceInput = document.getElementById('nft-price');
+        const buyButton = document.getElementById('buy-button');
+        const buyStatusEl = document.getElementById('buy-status');
+
+        let tonConnectUI = null;
+
+        // Запускаем инициализацию, когда DOM полностью загружен
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                // Инициализация TonConnectUI
+                // tonConnectUI будет отвечать за подключение к кошелькам и отправку транзакций.
+                tonConnectUI = new TonConnectUI({
+                    manifestUrl: MANIFEST_URL,
+                    buttonRootId: 'ton-connect-button' // ID элемента, куда будет встроена кнопка "Connect Wallet"
+                });
+
+                // Слушаем изменения статуса подключения кошелька
+                tonConnectUI.onStatusChange(walletInfo => {
+                    if (walletInfo) {
+                        // Кошелек подключен
+                        walletStatusEl.textContent = 'Подключен';
+                        // Форматируем адрес для лучшей читаемости (показывает user-friendly форму)
+                        // Пример: EQ... -> kQ... (bounceable vs non-bounceable)
+                        const userAddress = ton.Address.parse(walletInfo.account.address).toString(true, true, true);
+                        connectedAddressEl.textContent = userAddress;
+                        buyButton.disabled = false; // Активируем кнопку покупки
+                        buyStatusEl.textContent = ''; // Очищаем статус, если был
+                    } else {
+                        // Кошелек отключен
+                        walletStatusEl.textContent = 'Отключен';
+                        connectedAddressEl.textContent = 'N/A';
+                        buyButton.disabled = true; // Деактивируем кнопку покупки
+                        buyStatusEl.textContent = 'Подключите кошелек, чтобы купить NFT.';
+                    }
+                });
+
+                // Обработчик нажатия на кнопку "Купить NFT"
+                buyButton.addEventListener('click', async () => {
+                    if (!tonConnectUI.connected) {
+                        buyStatusEl.textContent = 'Пожалуйста, сначала подключите свой кошелек.';
+                        return;
+                    }
+
+                    const saleContractAddressRaw = saleContractAddressInput.value.trim();
+                    const nftItemAddressRaw = nftItemAddressInput.value.trim(); // Это поле опционально
+                    const nftPriceValue = parseFloat(nftPriceInput.value);
+
+                    // --- Валидация входных данных, введенных пользователем ---
+                    if (!saleContractAddressRaw) {
+                        buyStatusEl.className = 'message error';
+                        buyStatusEl.textContent = 'Пожалуйста, введите адрес Sale Contract.';
+                        return;
+                    }
+                    if (isNaN(nftPriceValue) || nftPriceValue <= 0) {
+                        buyStatusEl.className = 'message error';
+                        buyStatusEl.textContent = 'Пожалуйста, введите корректную цену NFT (больше 0).';
+                        return;
+                    }
+
+                    let saleAddress;
+                    try {
+                        // Пытаемся распарсить адрес Sale Contract'а, чтобы убедиться в его корректности
+                        saleAddress = ton.Address.parse(saleContractAddressRaw);
+                    } catch (e) {
+                        buyStatusEl.className = 'message error';
+                        buyStatusEl.textContent = 'Некорректный адрес Sale Contract. Проверьте формат.';
+                        return;
+                    }
+
+                    // Опционально: если адрес NFT-предмета введен, проверим его формат
+                    if (nftItemAddressRaw) {
+                        try {
+                            ton.Address.parse(nftItemAddressRaw); // Просто проверяем, что это валидный адрес
+                        } catch (e) {
+                            buyStatusEl.className = 'message error';
+                            buyStatusEl.textContent = 'Некорректный адрес NFT-предмета. Проверьте формат.';
+                            return;
+                        }
+                    }
+                    // --- Конец валидации ---
+
+
+                    buyStatusEl.className = 'message info';
+                    buyStatusEl.textContent = 'Подготовка транзакции...';
+
+                    try {
+                        // Конвертируем цену из TON (десятичное число) в NanoTONs (BigInt для точности)
+                        // 1 TON = 1,000,000,000 NanoTONs (10^9)
+                        const totalAmountNanoTON = BigInt(Math.floor(nftPriceValue * 1e9));
+
+                        // Создаем объект транзакции для отправки через TonConnect
+                        const transaction = {
+                            // validUntil: Время, до которого транзакция считается действительной (Unix timestamp).
+                            // Здесь устанавливаем 6 минут с текущего момента.
+                            validUntil: Math.floor(Date.now() / 1000) + 360, 
+                            messages: [
+                                {
+                                    // Адрес получателя TON (это адрес Sale Contract Getgems)
+                                    address: saleAddress.toString(),
+                                    // Сумма в NanoTONs, которую отправляем
+                                    amount: totalAmountNanoTON.toString(),
+                                    // Для большинства "Buy Now" на Getgems, payload (дополнительные данные) не требуется.
+                                    // Sale Contract просто реагирует на получение нужной суммы TON.
+                                    // Если Getgems в будущем изменит логику и потребует payload,
+                                    // его нужно будет создать и добавить здесь (например, в формате Cell).
+                                    payload: undefined // Явно указываем, что payload нет
+                                }
+                            ]
+                        };
+
+                        buyStatusEl.className = 'message info';
+                        buyStatusEl.textContent = 'Отправка транзакции в кошелек... Пожалуйста, подтвердите.';
+
+                        // Отправляем транзакцию через TonConnect UI.
+                        // Кошелек пользователя откроется и запросит подтверждение.
+                        const result = await tonConnectUI.sendTransaction(transaction);
+
+                        buyStatusEl.className = 'message success';
+                        buyStatusEl.textContent = `Транзакция успешно отправлена! Хэш: ${result.boc.slice(0, 30)}... (Полный хэш в консоли). Ваш NFT должен скоро появиться в вашем кошельке.`;
+                        console.log('Результат транзакции:', result);
+                        console.log('Пожалуйста, подождите несколько секунд. Ваш NFT должен появиться в вашем кошельке после обработки транзакции блокчейном.');
+
+                    } catch (e) {
+                        console.error('Ошибка покупки:', e);
+                        let errorMessage = e.message || "Неизвестная ошибка";
+                        // Обработка типичных ошибок от TonConnect или кошелька
+                        if (e.code === 1000 && e.error && e.error.message) {
+                            // Например, пользователь отклонил транзакцию в кошельке
+                            errorMessage = `Отклонено кошельком: ${e.error.message}`;
+                        } else if (e.name === 'UserRejectsError') { // Для более новых версий TonConnect SDK
+                            errorMessage = 'Пользователь отклонил транзакцию в кошельке.';
+                        } else if (e.name === 'TonConnectError') {
+                            errorMessage = `Ошибка TonConnect: ${e.message}`;
+                        }
+                        buyStatusEl.className = 'message error';
+                        buyStatusEl.textContent = `Ошибка покупки: ${errorMessage}. Проверьте консоль для деталей.`;
+                    }
+                });
+
+            } catch (error) {
+                console.error("Критическая ошибка инициализации TonConnectUI:", error);
+                walletStatusEl.textContent = `Ошибка инициализации приложения: ${error.message}. Проверьте консоль.`;
+            }
+        });
+    </script>
+</body>
+</html>
